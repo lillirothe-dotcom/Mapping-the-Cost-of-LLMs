@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>interaktives video</title>
+  <style>
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: #000;
+    }
+
+    #wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #hotspot-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hotspot {
+      position: absolute;
+      cursor: pointer;
+      border: 3.5px solid rgba(238,48,167, 1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 20px;
+      color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px;
+
+      /* standardmäßig unsichtbar und nicht klickbar */
+      opacity: 0;
+      pointer-events: none;
+      transition: background 0.2s, opacity 0.4s;
+    }
+
+    .hotspot:hover {
+      background: rgba(238,48,167, 0.2);
+    }
+
+    .hotspot.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s;
+    }
+
+    #overlay.fade {
+      opacity: 1;
+    }
+
+    #play-btn {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      border: 2px solid rgba(255, 255, 255, 0.6);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    #play-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    #play-btn::after {
+      content: '';
+      width: 0;
+      height: 0;
+      border-top: 12px solid transparent;
+      border-bottom: 12px solid transparent;
+      border-left: 20px solid rgba(255, 255, 255, 0.9);
+      margin-left: 4px;
+    }
+
+    #play-btn.hidden {
+      display: none;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div id="wrapper">
+    <video id="video" src="videos/1.0.mp4" muted></video>
+    <div id="hotspot-layer"></div>
+    <div id="overlay"></div>
+    <div id="play-btn"></div>
+  </div>
+
+  <script>
+
+    // =============================================
+    // SZENEN — hier alles einstellen
+    // =============================================
+    //
+    // Jeder Hotspot kann folgende Felder haben:
+    //
+    //   x, y       — Position (in %, von oben links)
+    //   w, h       — Größe (in %)
+    //   target     — welche Szene beim Klick geladen wird
+    //   label      — Text im Hotspot (optional)
+    //   showAt     — ab welcher Sekunde einblenden (optional, default: sofort)
+    //   hideAt     — ab welcher Sekunde ausblenden (optional, default: nie)
+    //
+    // Beispiel:
+    //   showAt: 3          → erscheint bei Sekunde 3
+    //   hideAt: 8          → verschwindet bei Sekunde 8
+    //   showAt: 3, hideAt: 8 → sichtbar nur zwischen Sekunde 3 und 8
+
+    const scenes = {
+      intro: {
+        file: "videos/1.0.mp4",
+        hotspots: [
+          {
+            x: "28%", y: "28%", w: "35%", h: "54%",
+            target: "szene_a",
+            label: "genauer anschauen",
+            showAt: 1
+            // kein hideAt → bleibt bis Ende sichtbar
+          }
+        ]
+      },
+      szene_a: {
+        file: "videos/1.1.mp4",
+        hotspots: [
+          {
+            x: "5%", y: "85%", w: "18%", h: "7%",
+            target: "intro",
+            label: "← zurück"
+          }
+        ]
+      }
+    };
+
+    // =============================================
+    // AB HIER NICHTS MEHR ANFASSEN
+    // =============================================
+
+    const video   = document.getElementById("video");
+    const playBtn = document.getElementById("play-btn");
+    let currentSceneId = "intro";
+
+    // Play-Button startet das Video
+    playBtn.addEventListener("click", () => {
+      video.play();
+      playBtn.classList.add("hidden");
+    });
+
+    // Video zu Ende → Play-Button wieder zeigen, Hotspots leeren
+    video.addEventListener("ended", () => {
+      playBtn.classList.remove("hidden");
+      document.getElementById("hotspot-layer").innerHTML = "";
+    });
+
+    // Jede Sekunde prüfen ob Hotspots ein- oder ausgeblendet werden sollen
+    video.addEventListener("timeupdate", () => {
+      const t = video.currentTime;
+      const hotspotDivs = document.querySelectorAll(".hotspot");
+      const scene = scenes[currentSceneId];
+      if (!scene) return;
+
+      hotspotDivs.forEach((div, i) => {
+        const hs = scene.hotspots[i];
+        if (!hs) return;
+
+        const show = (hs.showAt === undefined || t >= hs.showAt);
+        const hide = (hs.hideAt !== undefined && t >= hs.hideAt);
+
+        if (show && !hide) {
+          div.classList.add("visible");
+        } else {
+          div.classList.remove("visible");
+        }
+      });
+    });
+
+    function loadScene(id) {
+      currentSceneId = id;
+      const scene = scenes[id];
+      const overlay = document.getElementById("overlay");
+
+      overlay.classList.add("fade");
+
+      setTimeout(() => {
+        video.src = scene.file;
+        video.play();
+        buildHotspots(scene.hotspots);
+        overlay.classList.remove("fade");
+      }, 400);
+    }
+
+    function buildHotspots(hotspots) {
+      const layer = document.getElementById("hotspot-layer");
+      layer.innerHTML = "";
+
+      for (const hs of hotspots) {
+        const div = document.createElement("div");
+        div.className = "hotspot";
+        div.style.left   = hs.x;
+        div.style.top    = hs.y;
+        div.style.width  = hs.w;
+        div.style.height = hs.h;
+        div.textContent  = hs.label || "";
+        div.onclick = () => loadScene(hs.target);
+        layer.appendChild(div);
+      }
+    }
+
+    // Erste Szene vorbereiten (noch nicht abspielen)
+    buildHotspots(scenes[currentSceneId].hotspots);
+
+  </script>
+</body>
+</html>

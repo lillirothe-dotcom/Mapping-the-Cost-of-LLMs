@@ -1,0 +1,1731 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>interaktives video</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #wrapper {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Festes 16:9 — Hotspots bleiben immer an der richtigen Stelle */
+    #video-container {
+      position: relative;
+      width: min(100vw, calc(100vh * (16 / 9)));
+      height: min(100vh, calc(100vw * (9 / 16)));
+      flex-shrink: 0;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* =============================================
+       START-SCREEN
+       ============================================= */
+
+    #start-screen {
+      position: absolute;
+      top: 50%;
+      left: 18.5%;
+      width: 58.6%;
+      height: 8.85%;
+      display: flex;
+    }
+
+    /* === START-BUTTON — hier anpassen === */
+    #start-btn {
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border-radius: 100px;
+      background: rgba(255, 255, 255, 0);
+      border: 5px solid rgba(3, 252, 92, 0);
+      color: rgba(255, 255, 255, 0);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 1.2vw;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      /*transition: background 0.3s, color 0.3s, border-color 0.3s;
+      --pulse-color: rgba(3, 252, 92, 0.5);
+      --pulse-size: 30px;
+      animation: pulse 1.5s ease-in-out infinite;*/
+    }
+
+    #start-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0);
+    }
+
+    #start-screen.hidden {
+      display: none;
+    }
+
+
+    /* =============================================
+       HOTSPOT-LAYER
+       ============================================= */
+
+    #hotspot-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* Overlay und text-area füllen den ganzen Video-Container */
+    #overlay,
+    #text-area {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hotspot {
+      position: absolute;
+      cursor: pointer;
+      pointer-events: none;
+      background: rgba(255, 255, 255, 0.04);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 20px;
+      font-weight: 700;
+      color: rgba(0, 0, 0, 0.7);
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 8px;
+      opacity: 0;
+      transition: opacity 0.6s, background 0.2s;
+      --pulse-size: 10px;
+    }
+
+    .hotspot.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .hotspot:hover {
+      background: rgba(3, 252, 92, 0.2);
+    }
+
+
+    /* =============================================
+       ÜBERGANGS-OVERLAY
+       ============================================= */
+
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s;
+    }
+
+    #overlay.fade {
+      opacity: 1;
+    }
+
+
+    /* =============================================
+       PULSE-ANIMATION
+       ============================================= */
+
+      @keyframes pulse {
+        0%   { box-shadow: 0 0 0 0px var(--pulse-color); }
+        100% { box-shadow: 0 0 0 var(--pulse-size) transparent; }
+      }
+
+    .hotspot.pulse {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+
+    /* =============================================
+       TEXT-BEREICH
+       ============================================= */
+
+    #text-area {
+      position: absolute;
+      top: 0;
+      left: 0;
+
+      /* === GRÖSSE — hier anpassen === */
+      width: 25%;
+      height: 100%;
+
+      /* === AUSSEHEN — hier anpassen === */
+      background: #000;
+      padding: 0;
+
+      display: flex;
+      flex-direction: column;
+
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.6s;
+    }
+
+    /* Haupttext-Bereich: obere ¾ */
+    #text-main {
+      flex: 3;
+      padding: 20px 20px 16px 20px;
+      overflow: hidden;
+    }
+
+    /* Fußnoten-Bereich: untere ¼ */
+    #text-footnote {
+      flex: 1;
+      padding: 12px 16px 16px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      overflow: hidden;
+    }
+
+    #footnote-content {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;           /* === FUSSNOTEN-SCHRIFTGRÖSSE — hier anpassen === */
+      line-height: 1.5;
+      color: rgba(255, 255, 255, 0.5);
+      letter-spacing: 0.3px;
+    }
+
+    #text-area.visible {
+      opacity: 1;
+    }
+
+    #text-content {
+      /* === SCHRIFT — hier anpassen === */
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 18px;
+      line-height: 1.3;
+      letter-spacing: 0.3px;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    #text-cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: rgba(255, 255, 255, 0.7);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    #text-cursor.hidden {
+      display: none;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    /* =============================================
+       VIDEO-LABELS (Beschriftungen im Video)
+       ============================================= */
+
+    .video-label {
+      position: absolute;
+      pointer-events: none;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 14px;
+      letter-spacing: 1.5px;
+      color: rgba(255, 255, 255, 0.92);
+      text-shadow: 0 0 8px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8);
+      opacity: 0;
+      transition: opacity 0.5s;
+      white-space: nowrap;
+      background: rgba(0, 0, 0, 0.50);
+      padding: 4px 10px
+    }
+
+    .video-label.visible {
+      opacity: 1;
+    }
+
+    .video-label-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 1em;
+      background: rgba(255, 255, 255, 0.7);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    /* =============================================
+       UMRANDUNGEN (erscheinen erst ab 2. Video)
+       ============================================= */
+
+    /* =============================================
+       QUELLEN-SPOT & TOOLTIP
+       ============================================= */
+
+    #source-spot {
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: rgba(3, 252, 92, 0.80);
+      cursor: pointer;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(0, 0, 0, 0.75);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      
+      z-index: 20;
+      transform: translate(-50%, -50%);
+    }
+
+    #source-spot.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    #source-tooltip {
+      position: absolute;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+      background: rgba(0, 0, 0, 0.92);
+      border: 1.5px solid rgba(3, 252, 92, 0.7);
+      border-radius: 6px;
+      padding: 14px 18px;
+      max-width: 320px;
+      min-width: 180px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.85);
+      z-index: 30;
+      white-space: pre-wrap;
+      transform: translateX(-50%);
+    }
+
+    #source-tooltip.visible {
+      opacity: 1;
+    }
+
+    #source-tooltip strong {
+      color: rgba(3, 252, 92, 0.95);
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+
+    /* FORTSCHRITTS-BALKEN */
+    #progress-bar-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.8s;
+    }
+    #progress-bar-container.visible {
+      opacity: 1;
+    }
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: rgba(3, 252, 92, 1);
+      transition: width 0.6s ease;
+      box-shadow: 0 0 8px rgba(3, 252, 92, 0.6);
+    }
+
+    #video-container {
+      border: 3px solid transparent;
+      border-radius: 4px;
+      transition: border-color 0.8s;
+    }
+
+    #video-container.bordered {
+      border-color: rgba(3, 252, 92, 1);
+    }
+
+    #text-area {
+      border-right: 3px solid transparent;
+      transition: border-color 0.8s;
+    }
+
+    #text-area.bordered {
+      border-right-color: rgba(3, 252, 92, 1);
+    }
+
+  </style>
+</head>
+<body>
+
+  <div id="progress-bar-container">
+    <div id="progress-bar"></div>
+  </div>
+  <div id="wrapper">
+    <div id="video-container">
+
+      <video id="video" src="videos/start.mp4" muted preload="metadata"></video>
+
+      <div id="start-screen">
+        <button id="start-btn"></button>
+      </div>
+
+      <div id="hotspot-layer"></div>
+      <div id="video-label-layer"></div>
+      <div id="overlay"></div>
+
+      <!-- Quellen-Spot -->
+      <div id="source-spot">src</div>
+      <div id="source-tooltip"></div>
+
+      <div id="text-area">
+        <div id="text-main">
+          <div id="text-content"><span id="text-cursor"></span></div>
+        </div>
+        <div id="text-footnote">
+          <div id="footnote-content"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+
+    
+    const scenes = {
+      intro: {
+        file: "videos/start.mp4",
+        isMenu: true,
+        // Quellen-Spot — optional pro Szene konfigurierbar:
+        //   showAt  — ab welcher Sekunde sichtbar (default: 0)
+        //   x, y    — Position in px (default: 500px / 1000px)
+        //   text    — Quellentext (Zeilenumbrüche mit \n)
+        sources: {
+          showAt: 0,
+          x: "28%",
+          y: "95%",
+          text: "Google | BKG (©2009)Inst. Geogr. Nacional \nData SIO, NOAA, U.S. Navy, NGA, GEBCOLandsat / CopernicusIBCAOGeoBasis-DE \n14.12.2015–1.1.2021"
+        },
+        text: "Der Ressourcenverbrauch schwankt je nach Standort des Rechenzentrums und Zeitpunkt, es gibt keine standardisierten Messgrößen, und Techkonzerne veröffentlichen nur wenige oder unvollständige Daten.",
+        textAreaDelay: 2,
+        textDelay: 2,
+        textSpeed: 30,
+        labels: [
+            {
+              text: "du befindest dich gerade hier",
+              x: "68%", y: "46%",
+              showAt: 5.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+              x: "68%", y: "52%", w: "50px", h: "50px",
+              target: "szene_in",
+              showAt: 5.5,
+              color: "rgba(3, 252, 92, 0.70)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_in: {
+        file: "videos/start1.0.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | BKG (©2009)Inst. Geogr. Nacional \nData SIO, NOAA, U.S. Navy, NGA, GEBCOLandsat / CopernicusIBCAOGeoBasis-DE \n14.12.2015–1.1.2021" },
+        text: "Hier in Sachsen und in der Größe eines Tweets kostet dein Prompt ungefähr <c:#03fc5c>1.17 Wh</c> Strom (1 LED kann 7 min lang leuchten) und <c:#03fc5c>5.05 ml</c> Wasser (100 Regentropfen)<c:#03fc5c>¹</c>.",
+        footnote: "¹ GenAI Impact: EcoLogits Calculator. Hugging Face Spaces, 2024. URL: https://huggingface.co/spaces/genai-impact/ecologits-calculator \n(abgerufen am 04.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+              label: "weiter",
+              x: "87%", y: "90%", w: "10%", h: "5%",
+              target: "szene_a",
+              showAt: 0.01,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "8px",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.7)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+
+
+      szene_a: {
+        file: "videos/start1.1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | BKG (©2009)Inst. Geogr. Nacional \nData SIO, NOAA, U.S. Navy, NGA, GEBCOLandsat / CopernicusIBCAOGeoBasis-DE \n14.12.2015–1.1.2021" },
+        text: "Nehmen wir an, du promptest hier durchschnittlich <c:#03fc5c>20 Prompts pro Tag</c>. Das wären dann <c:#03fc5c>23,4 Wh</c> Strom (1–2 Handyladungen) und <c:#03fc5c>101 ml</c> Wasser (6–7 Esslöffel).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            label: "weiter",
+            x: "87%", y: "90%", w: "10%", h: "5%",
+            target: "szene_b",
+            showAt: 0.01,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.7)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+
+      szene_b: {
+        file: "videos/start1.2.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | BKG (©2009)Inst. Geogr. Nacional \nData SIO, NOAA, U.S. Navy, NGA, GEBCOLandsat / CopernicusIBCAOGeoBasis-DE \n14.12.2015–1.1.2021" },
+        text: "Gäbe jede zweite Person in Deutschland ein Jahr lang so oft wie du einen Prompt ab, wären das jährlich ca. <c:#03fc5c>360,4 Mio. kWh Strom</c> (für 240–260 Single-Haushalte) und <c:#03fc5c>1,55 Bio. Liter</c> Wasser (für die Hälfte Deutschlands).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            label: "weiter",
+            x: "87%", y: "90%", w: "10%", h: "5%",
+            target: "szene_c",
+            showAt: 0.01,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+
+      szene_c: {
+        file: "videos/switch.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | GEBCOLandsat / CopernicusIBCAO \nData SIO, NOAA, U.S. Navy, NGA, \n14.12.2015–1.1.2021" },
+        text: "Der deutlich <c:#03fc5c>größere Ressourcenverbrauch</c> entsteht jedoch nicht beim einzelnen Nutzer, sondern <c:#03fc5c>in den Datenzentren während des Trainings der LLMs</c>.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+              x: "58%", y: "50%", w: "100px", h: "100px",
+              target: "szene_d",
+              showAt: 3.5,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+
+      szene_d: {
+        file: "videos/1.0.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google \n10.6.2024–16.9.2025" },
+        text: "In Wisconsin steht <c:#03fc5c>Microsofts</c> KI-Rechenzentrum <c:#03fc5c>Fairwater (Mount Pleasant)</c>, das aktuell das leistungsstärkste der Welt ist. Microsoft stellt seine KI-Rechenzentren im Rahmen der Partnerschaft mit <c:#03fc5c>OpenAI</c> für <c:#03fc5c>ChatGPT</c> bereit.\n\n",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            x: "52%", y: "40%", w: "250px", h: "250px",
+            target: "szene_e",
+            showAt: 6,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+
+      szene_e: {
+        file: "videos/1.1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Landsat / Copernicus | NOAA \nData SIO, NOAA, U.S. Navy, NGA, GEBCO \n29.6.2011–24.10.2025" },
+        text: "Das Gebäude war bei der Aufnahme noch im Bau, ist aber mittlerweile in Betrieb. <c:#03fc5c>Schau dich gern ein bisschen um und entdecke, welche Ressourcen hier gebraucht werden.</c>",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        // ACHTUNG: hotspots darf nur einmal vorkommen pro Szene
+        // mehrere Hotspots kommen als mehrere Objekte ins Array
+        labels: [
+            {
+              text: "'Fairwater' in Mount Pleasant, Wisconsin, von Microsoft (ChatGPT)",
+              x: "40%", y: "5%",
+              showAt: 0,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+            x: "60%", y: "50%", w: "100px", h: "100px",
+            target: "szene_ea",
+            showAt: 6.5,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          },
+          {
+            x: "80%", y: "30%", w: "100px", h: "100px",
+            target: "szene_eb",
+            showAt: 6.5,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          },
+          {
+            x: "45%", y: "34%", w: "100px", h: "100px",
+            target: "szene_ec",
+            showAt: 6.5,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+         },
+         {
+           label: "weiter",
+           x: "87%", y: "90%", w: "10%", h: "5%",
+           target: "szene_f",
+           showAt: 6.7,
+           color: "rgba(3, 252, 92, 0.80)",
+           borderRadius: "8px",
+           pulse: true,
+           pulseColor: "rgba(3, 252, 92, 0.5)",
+           pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_e2: {
+        file: "videos/1.1.1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Quellen:\n— Quelle 1\n— Quelle 2" },
+        text: "Schau dich gern etwas um und entdecke, welche Ressourcen hier benötigt werden.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        // ACHTUNG: hotspots darf nur einmal vorkommen pro Szene
+        // mehrere Hotspots kommen als mehrere Objekte ins Array
+        hotspots: [
+          {
+            x: "60%", y: "50%", w: "100px", h: "100px",
+            target: "szene_ea",
+            showAt: 0.2,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          },
+          {
+            x: "80%", y: "30%", w: "100px", h: "100px",
+            target: "szene_eb",
+            showAt: 0.2,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          },
+          {
+            x: "45%", y: "34%", w: "100px", h: "100px",
+            target: "szene_ec",
+            showAt: 0.2,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          },
+          {
+           label: "weiter",
+           x: "87%", y: "90%", w: "10%", h: "5%",
+           target: "szene_f",
+           showAt: 0.2,
+           color: "rgba(3, 252, 92, 0.80)",
+           borderRadius: "8px",
+           pulse: true,
+           pulseColor: "rgba(3, 252, 92, 0.5)",
+           pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_ea: {
+        file: "videos/ea.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Quellen:\n— Quelle 1\n— Quelle 2" },
+        text: "Neben Strom wird auch <c:#03fc5c>Wasser zur Kühlung</c> benötigt. <c:#03fc5c>90% der Anlage</c> nutzen ein innovatives Kühlungssystem mit einmaliger Wasserentnahme und geschlossenem Kreislauf, die zweitgrößte Kälteanlage der Welt. Die restlichen <c:#03fc5c>10% sind luftgekühlt</c>.",
+        footnote: "¹ Microsoft Blog: Inside the World's Most Powerful AI Datacenter. blogs.microsoft.com, 18.09.2025. URL: https://blogs.microsoft.com/blog/2025/09/18/inside-the-worlds-most-powerful-ai-datacenter/ (abgerufen am 04.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            label: "X",
+            x: "95%", y: "5%", w: "50px", h: "50px",
+            target: "szene_e2",
+            showAt: 0,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_eb: {
+        file: "videos/eb.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Quellen:\n— Quelle 1\n— Quelle 2" },
+        text: "Hier stehen vor allem <c:#03fc5c>Backup-Server</c> und <c:#03fc5c>Lithium-Ionen-Batterien</c> zur Energiespeicherung. Das Lithium stammt größtenteils aus südamerikanischen Salzseen.<c:#03fc5c>¹</c>",
+        footnote: "¹ Microsoft Blog: Inside the World's Most Powerful AI Datacenter. blogs.microsoft.com, 18.09.2025. URL: https://blogs.microsoft.com/blog/2025/09/18/inside-the-worlds-most-powerful-ai-datacenter/ (abgerufen am 04.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            label: "X",
+            x: "95%", y: "5%", w: "50px", h: "50px",
+            target: "szene_e2",
+            showAt: 0.1,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          },
+          {
+            x: "77%", y: "55%", w: "100px", h: "100px",
+            target: "szene_eba",
+            showAt: 1.5,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "50%",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_eba: {
+        file: "videos/eba.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Airbus \n28.1.2023–27.12.2023" },
+        text: "<c:#03fc5c>Chile</c> verfügt über die weltweit größten Lithiumreserven, die größtenteils in der <c:#03fc5c>Atacama-Wüste</c> abgebaut werden.<c:#03fc5c>¹</c>",
+        footnote: "¹ WFD: Lithium-Abbau erklärt: Gewinnung, Länder und Umweltfolgen. wfd.de, 15.04.2026. URL: https://wfd.de/themen/lithium-abbau/ (abgerufen am 04.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+              x: "60%", y: "40%", w: "100px", h: "100px",
+              target: "szene_ebb",
+              showAt: 7,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          },
+         {
+              label: "X",
+              x: "95%", y: "5%", w: "50px", h: "50px",
+              target: "szene_e2",
+              showAt: 0.1,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "8px",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_ebb: {
+        file: "videos/ebb.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Airbus | Landsat / Copernicus \nData SIO, NOAA, U.S. Navy, NGA, GEBCO \n14.12.2015–4.12.2023" },
+        text: "Für die Gewinnung von <c:#03fc5c>1 kg Lithium</c> werden etwa <c:#03fc5c>2.000 Liter Wasser</c> benötigt.<c:#03fc5c>¹</c> Der hohe Wasserverbrauch kann langfristig lokale Trinkwasserreserven beeinträchtigen und den Grundwasserspiegel senken.",
+        footnote: "¹ WFD: Lithium-Abbau erklärt: Gewinnung, Länder und Umweltfolgen. wfd.de, 15.04.2026. URL: https://wfd.de/themen/lithium-abbau/ (abgerufen am 04.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            label: "X",
+            x: "95%", y: "5%", w: "50px", h: "50px",
+            target: "szene_e2",
+            showAt: 0.1,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+           }
+        ]
+      },
+      
+      szene_ec: {
+        file: "videos/ec.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Quellen:\n— Quelle 1\n— Quelle 2" },
+        text: "Zu sehen sind Server-Racks mit durchschnittlich 30–70 leistungsstarken KI-GPUs für das Training großer Sprachmodelle (LLMs). Marktführer ist derzeit NVIDIA mit der Chipgeneration „Blackwell Ultra“<c:#03fc5c>¹</c>. Die Fertigung erfolgt unter anderem durch TSMC, den weltweit größten Auftragshersteller für Halbleiter. Die starke Konzentration der Produktion in Taiwan gilt jedoch als geopolitisches Risiko für globale Lieferketten.<c:#03fc5c>²</c>.",
+        footnote: "¹ Heise Online: Kyber Rack: Nvidia zeigt Rubin Ultra Boards. heise.de, 2026. URL: https://www.heise.de/news/Kyber-Rack-Nvidia-zeigt-Rubin-Ultra-Boards-11213070.html (abgerufen am 04.06.2026).\n² Liu et al.: From vulnerabilities to resilience: Taiwan's semiconductor industry and geopolitical challenges. Sustainable Production and Consumption, 2025. URL: https://www.sciencedirect.com/science/article/pii/S0308596125000485 (abgerufen am 09.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+            label: "X",
+            x: "95%", y: "5%", w: "50px", h: "50px",
+            target: "szene_e2",
+            showAt: 0,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_f: {
+        file: "videos/1.2.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | GEBCO Landsat / Copernicus | IBCAO | INEGI | U.S. Geological Survey | PGC/NASABilder \nData SIO, NOAA, U.S. Navy, NGA, GEBCO \n14.12.2015–1.1.2021" },
+        text: "Werfen wir nun einen Blick auf ein weiteres Rechenzentrum.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        labels: [
+            {
+              text: "Fairwater",
+              x: "57%", y: "37%",
+              showAt: 6.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+              x: "65%", y: "50%", w: "100px", h: "100px",
+              target: "szene_g",
+              showAt: 6.5,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_g: {
+        file: "videos/2.0.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google \n2.3.2024" },
+        text: "Einige Technologiekonzerne setzen zunehmend auf eigene Energieerzeugung, da die bestehende Infrastruktur den steigenden Strombedarf nur begrenzt decken kann.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+              x: "60%", y: "50%", w: "250px", h: "250px",
+              target: "szene_h",
+              showAt: 6.8,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_h: {
+        file: "videos/2.1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Landsat / Copernicus | Airbus \n5.7.2014–1.1.2026" },
+        text: "Das Rechenzentrum <c:#03fc5c>„Colossus“</c> von <c:#03fc5c>xAI</c> in <c:#03fc5c>Memphis</c> wird teilweise durch Gaskraftwerke versorgt. Deren Betrieb sorgte aufgrund fehlender Genehmigungen und möglicher Umweltbelastungen für Kontroversen.<c:#03fc5c>¹</c>",
+        footnote: "¹ Heise Online: US-Bürgerrechtsgruppe klagt gegen xAI wegen Gasturbinen. heise.de, 2026. URL: https://www.heise.de/news/US-Buergerrechtsgrupe-klagt-gegen-xAI-wegen-Gasturbinen-11293085.html (abgerufen am 04.06.2026).",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        labels: [
+            {
+              text: "'Colossus' in Memphis, Tennessee, von xAI (Grok)",
+              x: "45%", y: "5%",
+              showAt: 0,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+            label: "weiter",
+            x: "87%", y: "90%", w: "10%", h: "5%",
+            target: "szene_i",
+            showAt: 0.2,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_i: {
+        file: "videos/2.2.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | GEBCO Landsat / Copernicus | IBCAO | INEGI | U.S. Geological Survey | PGC/NASABilder \nData SIO, NOAA, U.S. Navy, NGA, GEBCO \n14.12.2015–1.1.2021" },
+        text: "Ein weiteres DZ-Cluster steht in New Albany, Ohio.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        labels: [
+            {
+              text: "Fairwater",
+              x: "59%", y: "49%",
+              showAt: 6.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            },
+            {
+              text: "Colossus",
+              x: "59.5%", y: "59%",
+              showAt: 6.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+              x: "70%", y: "52%", w: "100px", h: "100px",
+              target: "szene_j",
+              showAt: 6.5,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_j: {
+        file: "videos/3.0.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google \n16.9.2022–10.9.2025" },
+        text: "Dieser Hyperscaler namens <c:#03fc5c>„Prometheus“</c> gehört dem Unternehmen <c:#03fc5c>Meta</c>, das mit dem Sprachmodell <c:#03fc5c>„LLaMA“</c> KI-Assistenten für Plattformen wie <c:#03fc5c>Facebook und WhatsApp</c> entwickelt.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+              x: "60%", y: "40%", w: "250px", h: "250px",
+              target: "szene_k",
+              showAt: 6,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_k: {
+        file: "videos/3.1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Landsat / Copernicus | NOAA \n29.5.2010–11.9.2025" },
+        text: "Auch dieser Campus wurde erst kürzlich errichtet und ist auf diesen Aufnahmen noch nicht vollständig ausgebaut. Klick dich gerne etwas durch.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        labels: [
+            {
+              text: "'Prometheus' in New Albany, Ohio, von Meta (LLaMA)",
+              x: "40%", y: "5%",
+              showAt: 0,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+              x: "60%", y: "40%", w: "250px", h: "250px",
+              target: "szene_l",
+              showAt: 6,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          },
+          {
+              label: "weiter",
+              x: "87%", y: "90%", w: "10%", h: "5%",
+              target: "szene_m",
+              showAt: 0.2,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "8px",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+           }
+        ]
+      },
+      
+      szene_k2: {
+        file: "videos/3.1.1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Landsat / Copernicus | NOAA \n29.5.2010–11.9.2025" },
+        text: "Klick dich gern etwas durch.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+          {
+              x: "60%", y: "40%", w: "250px", h: "250px",
+              target: "szene_l",
+              showAt: 0,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "50%",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+          },
+          {
+              label: "weiter",
+              x: "87%", y: "90%", w: "10%", h: "5%",
+              target: "szene_m",
+              showAt: 0.2,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "8px",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+           }
+        ]
+      },
+      
+      szene_l: {
+        file: "videos/3.2.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Airbus \n29.5.2010–26.10.2025" },
+        text: "<c:#03fc5c>„Prometheus“</c> bezieht Kühlwasser vermutlich aus der regionalen Wasserversorgung rund um Columbus, die Flüsse wie den Scontio River nutzt. Der hohe Bedarf großer Rechenzentren kann lokale <c:#03fc5c>Wasserressourcen zusätzlich belasten</c>.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        labels: [
+            {
+              text: "Scontio River",
+              x: "48%", y: "30%",
+              showAt: 3.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            },
+            {
+              text: "Wasserturm",
+              x: "75%", y: "24%",
+              showAt: 3.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            },
+            {
+              text: "Prometheus",
+              x: "74%", y: "34%",
+              showAt: 3.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+         {
+             label: "X",
+             x: "95%", y: "5%", w: "50px", h: "50px",
+             target: "szene_k2",
+             showAt: 0,
+             color: "rgba(3, 252, 92, 0.80)",
+             borderRadius: "8px",
+             pulse: true,
+             pulseColor: "rgba(3, 252, 92, 0.5)",
+             pulseSize: "30px"
+          }
+        ]
+      },
+      
+      szene_m: {
+        file: "videos/ende1.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | GEBCO Landsat / Copernicus | IBCAO | INEGI | U.S. Geological Survey | PGC/NASABilder \nData SIO, NOAA, U.S. Navy, NGA, GEBCO \n14.12.2015–1.1.2021" },
+        text: "Lasst uns nun zurück zu uns kommen.",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        labels: [
+            {
+              text: "Fairwater",
+              x: "47%", y: "49%",
+              showAt: 3.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            },
+            {
+              text: "Colossus",
+              x: "47%", y: "59%",
+              showAt: 3.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            },
+            {
+              text: "Prometheus",
+              x: "62%", y: "52%",
+              showAt: 3.5,      // erscheint bei Sekunde 3
+              //hideAt: 9,      // verschwindet bei Sekunde 8
+              
+              speed: 60,      // ms/Zeichen, optional
+              color: "rgba(3,252,92,0.9)"  // optional
+            }
+          ],
+        hotspots: [
+          {
+              label: "weiter",
+              x: "87%", y: "90%", w: "10%", h: "5%",
+              target: "szene_n",
+              showAt: 0.2,
+              color: "rgba(3, 252, 92, 0.80)",
+              borderRadius: "8px",
+              pulse: true,
+              pulseColor: "rgba(3, 252, 92, 0.5)",
+              pulseSize: "30px"
+           }
+        ]
+      },
+      
+      szene_n: {
+        resetToStart: true,
+        file: "videos/ende2.mp4",
+        // Quellen-Spot: x/y in % relativ zum Video-Container anpassen
+        sources: { x: "28%", y: "95%", showAt: 0, text: "Google | Landsat / Copernicus | IBCAO | U.S. Geological Survey \nData SIO, NOAA, U.S. Navy, NGA, GEBCO \n14.12.2015–1.1.2021" },
+        text: "Zusammenfassend kann also gesagt werden, dass...",
+        textAreaDelay: 0,
+        textDelay: 1,
+        textSpeed: 40,
+        hotspots: [
+         {
+            label: "beenden",
+            x: "85%", y: "87%", w: "10%", h: "5%",
+            target: "__reset__",
+            showAt: 0.2,
+            color: "rgba(3, 252, 92, 0.80)",
+            borderRadius: "8px",
+            pulse: true,
+            pulseColor: "rgba(3, 252, 92, 0.5)",
+            pulseSize: "30px"
+          }
+        ]
+      }
+
+    };
+
+
+    // =============================================
+    // AB HIER NICHTS MEHR ANFASSEN
+    // =============================================
+
+    const video       = document.getElementById("video");
+    const startScreen = document.getElementById("start-screen");
+    const startBtn    = document.getElementById("start-btn");
+    const overlay     = document.getElementById("overlay");
+    const textArea    = document.getElementById("text-area");
+    const textContent = document.getElementById("text-content");
+    const textCursor  = document.getElementById("text-cursor");
+
+    let currentSceneId     = "intro";
+    let videoEnded         = false;
+    let alreadyVisitedMenu = false;
+    let jumpPending        = false;
+    let typewriterTimeout  = null;
+
+    // FORTSCHRITTS-BALKEN
+    const SCENE_ORDER = [
+      "intro", "szene_in", "szene_a", "szene_b", "szene_c",
+      "szene_d", "szene_e", "szene_e2", "szene_ea", "szene_eb",
+      "szene_eba", "szene_ebb", "szene_ec", "szene_f", "szene_g",
+      "szene_h", "szene_i", "szene_j", "szene_k", "szene_k2",
+      "szene_l", "szene_m", "szene_n"
+    ];
+    const visitedScenes = new Set();
+    const progressBarContainer = document.getElementById("progress-bar-container");
+    const progressBar = document.getElementById("progress-bar");
+
+    function updateProgressBar(sceneId) {
+      visitedScenes.add(sceneId);
+      const maxIndex = Math.max(...[...visitedScenes].map(id => SCENE_ORDER.indexOf(id)).filter(i => i >= 0));
+      const progress = (maxIndex + 1) / SCENE_ORDER.length * 100;
+      progressBar.style.width = progress + "%";
+    }
+
+    // =============================================
+    // INAKTIVITÄTS-RESET (5 Minuten)
+    // =============================================
+
+    const IDLE_MS = 5 * 60 * 1000; // 5 Minuten
+    let idleTimer = null;
+
+    function resetIdleTimer() {
+      clearTimeout(idleTimer);
+      // Nur resetten wenn wir NICHT schon auf dem Startscreen sind
+      if (currentSceneId === "intro" && !startScreen.classList.contains("hidden")) return;
+      idleTimer = setTimeout(() => {
+        resetToStart();
+      }, IDLE_MS);
+    }
+
+    function resetToStart() {
+      clearTypewriter();
+      clearVideoLabels();
+      document.getElementById("hotspot-layer").innerHTML = "";
+      document.getElementById("video-container").classList.remove("bordered");
+      textArea.classList.remove("bordered");
+      // Quellen-Spot zurücksetzen — erst nach erneutem Start sichtbar
+      appStarted = false;
+      sourceShown = false;
+      sourceSpot.classList.remove("visible");
+      sourceTooltip.classList.remove("visible");
+      sourceSpot.style.left = "-9999px";
+      sourceSpot.style.top  = "-9999px";
+      progressBarContainer.classList.remove("visible");
+      progressBar.style.width = "0%";
+      visitedScenes.clear();
+      currentSceneId     = "intro";
+      videoEnded         = false;
+      alreadyVisitedMenu = false;
+      video.src = scenes["intro"].file;
+      video.load();
+      startScreen.classList.remove("hidden");
+      buildHotspots(scenes["intro"].hotspots || []);
+    }
+
+    // Jede Nutzerinteraktion setzt den Timer zurück
+    ["click","keydown","mousemove","touchstart","scroll"].forEach(evt => {
+      document.addEventListener(evt, resetIdleTimer, { passive: true });
+    });
+
+    // Erstes Frame laden
+    video.addEventListener("loadedmetadata", () => {
+      if (jumpPending) {
+        jumpPending = false;
+        jumpToEnd();
+      } else {
+        video.currentTime = 0.01;
+      }
+    });
+
+    // Start-Button — alle 4 Parameter korrekt übergeben
+    startBtn.addEventListener("click", () => {
+      startScreen.classList.add("hidden");
+      video.play();
+      videoEnded = false;
+      alreadyVisitedMenu = true;
+      resetIdleTimer();
+      progressBarContainer.classList.add("visible");
+      updateProgressBar("intro");
+
+      const scene = scenes[currentSceneId];
+      if (scene.text) {
+        startTypewriter(
+          scene.text,
+          scene.textAreaDelay !== undefined ? scene.textAreaDelay : 0,
+          scene.textDelay     !== undefined ? scene.textDelay     : 0.5,
+          scene.textSpeed     !== undefined ? scene.textSpeed     : 40
+        );
+      }
+      if (scene.footnote) {
+        document.getElementById("footnote-content").innerHTML =
+          scene.footnote.replace(/\n/g, "<br>");
+      }
+      if (scene.labels) buildVideoLabels(scene.labels);
+
+      // Rahmen, Textfeld und src-Spot erscheinen gleichzeitig
+      setTimeout(() => {
+        document.getElementById("video-container").classList.add("bordered");
+        textArea.classList.add("bordered");
+        appStarted = true;
+        updateSourceSpot(scene);
+      }, 2000);
+    });
+
+    // Hotspots ein/ausblenden
+    video.addEventListener("timeupdate", () => {
+      if (videoEnded) return;
+      const t = video.currentTime;
+      const scene = scenes[currentSceneId];
+      if (!scene) return;
+
+      document.querySelectorAll(".hotspot").forEach((div, i) => {
+        const hs = scene.hotspots[i];
+        if (!hs) return;
+        const afterShow  = (hs.showAt === undefined || t >= hs.showAt);
+        const beforeHide = (hs.hideAt === undefined || t < hs.hideAt);
+        if (afterShow && beforeHide) {
+          div.classList.add("visible");
+        } else if (hs.hideAt !== undefined && t >= hs.hideAt) {
+          div.classList.remove("visible");
+        }
+      });
+    });
+
+      video.addEventListener("ended", () => {
+        videoEnded = true;
+
+        // nochmal alle Hotspots prüfen — falls timeupdate sie verpasst hat
+        const scene = scenes[currentSceneId];
+        if (!scene) return;
+
+        document.querySelectorAll(".hotspot").forEach((div, i) => {
+          const hs = scene.hotspots[i];
+          if (!hs) return;
+
+          const afterShow  = (hs.showAt === undefined || video.duration >= hs.showAt);
+          const beforeHide = (hs.hideAt === undefined);
+
+          if (afterShow && beforeHide) {
+            div.classList.add("visible");
+          }
+        });
+
+        if (scene.resetToStart) {
+          setTimeout(() => {
+            clearTypewriter();
+            clearVideoLabels();
+            document.getElementById("hotspot-layer").innerHTML = "";
+            document.getElementById("video-container").classList.remove("bordered");
+            textArea.classList.remove("bordered");
+            currentSceneId     = "intro";
+            videoEnded         = false;
+            alreadyVisitedMenu = false;
+            video.src = scenes["intro"].file;
+            video.load();
+            startScreen.classList.remove("hidden");
+            buildHotspots(scenes["intro"].hotspots);
+          }, 180000);
+        }
+      });
+
+      function jumpToEnd() {
+        video.currentTime = video.duration - 0.01;
+        videoEnded = true;
+
+        const scene = scenes[currentSceneId];
+        if (!scene) return;
+
+        document.querySelectorAll(".hotspot").forEach((div, i) => {
+          const hs = scene.hotspots[i];
+          if (!hs) return;
+          // hideAt respektieren, sonst immer einblenden
+          if (hs.hideAt === undefined) {
+            div.classList.add("visible");
+          }
+        });
+      }
+
+    // --- Typewriter ---
+
+    // Text-Syntax für Farben: <c:green>Wort</c> oder <c:#ff0000>Wort</c>
+    // Vordefinierte Farbnamen: green, red, yellow, orange, cyan, white
+    const COLOR_ALIASES = {
+      green:  "rgba(3, 252, 92, 0.95)",
+      red:    "rgba(255, 80, 80, 0.95)",
+      yellow: "rgba(255, 220, 60, 0.95)",
+      orange: "rgba(255, 150, 50, 0.95)",
+      cyan:   "rgba(80, 220, 255, 0.95)",
+      white:  "rgba(255, 255, 255, 1)"
+    };
+
+    // Parst Text mit <c:farbe>...</c> in Segmente: [{text, color}]
+    function parseColoredText(raw) {
+      const segments = [];
+      const regex = /<c:([^>]+)>([\s\S]*?)<\/c>/g;
+      let last = 0, m;
+      while ((m = regex.exec(raw)) !== null) {
+        if (m.index > last) segments.push({ text: raw.slice(last, m.index), color: null });
+        const col = COLOR_ALIASES[m[1]] || m[1];
+        segments.push({ text: m[2], color: col });
+        last = m.index + m[0].length;
+      }
+      if (last < raw.length) segments.push({ text: raw.slice(last), color: null });
+      return segments;
+    }
+
+    function clearTypewriter() {
+      if (typewriterTimeout) {
+        clearTimeout(typewriterTimeout);
+        typewriterTimeout = null;
+      }
+      textContent.innerHTML = "";
+      textContent.appendChild(textCursor);
+      textCursor.classList.remove("hidden");
+      textArea.classList.remove("visible");
+      document.getElementById("footnote-content").innerHTML = "";
+    }
+
+    function startTypewriter(text, areaDelay, delay, speed) {
+      clearTypewriter();
+      const segments = parseColoredText(text);
+
+      // Alle Zeichen als flache Liste: {char, color}
+      const chars = [];
+      for (const seg of segments) {
+        for (const ch of seg.text) {
+          chars.push({ ch, color: seg.color });
+        }
+      }
+
+      setTimeout(() => {
+        textArea.classList.add("visible");
+      }, areaDelay * 1000);
+
+      setTimeout(() => {
+        let i = 0;
+        function typeNext() {
+          if (i < chars.length) {
+            const { ch, color } = chars[i];
+            if (color) {
+              const span = document.createElement("span");
+              span.style.color = color;
+              span.textContent = ch;
+              textContent.insertBefore(span, textCursor);
+            } else {
+              const node = document.createTextNode(ch);
+              textContent.insertBefore(node, textCursor);
+            }
+            i++;
+            typewriterTimeout = setTimeout(typeNext, speed);
+          } else {
+            typewriterTimeout = null;
+          }
+        }
+        typeNext();
+      }, delay * 1000);
+    }
+
+    // --- Video-Labels ---
+    // labels: [ { text, x, y, showAt, hideAt, size, color, speed } ]
+
+    let labelTypewriterTimeouts = [];
+
+    function clearVideoLabels() {
+      labelTypewriterTimeouts.forEach(t => clearTimeout(t));
+      labelTypewriterTimeouts = [];
+      const layer = document.getElementById("video-label-layer");
+      if (layer) layer.innerHTML = "";
+    }
+
+    function buildVideoLabels(labels) {
+      clearVideoLabels();
+      if (!labels || !labels.length) return;
+
+      const layer = document.getElementById("video-label-layer");
+      layer.style.cssText = "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;";
+
+      for (const lb of labels) {
+        const div = document.createElement("div");
+        div.className = "video-label";
+        div.style.left = lb.x || "50%";
+        div.style.top  = lb.y || "50%";
+        if (lb.size)  div.style.fontSize = lb.size;
+        if (lb.color) div.style.color    = lb.color;
+
+        // Cursor-Span
+        const cursor = document.createElement("span");
+        cursor.className = "video-label-cursor";
+        div.appendChild(cursor);
+        layer.appendChild(div);
+
+        // showAt / hideAt via timeupdate
+        div._labelCfg = lb;
+        div._labelTyped = false;
+      }
+    }
+
+    // timeupdate für Labels
+    video.addEventListener("timeupdate", () => {
+      const t = video.currentTime;
+      document.querySelectorAll(".video-label").forEach(div => {
+        const lb = div._labelCfg;
+        if (!lb) return;
+        const show = lb.showAt !== undefined ? t >= lb.showAt : true;
+        const hide = lb.hideAt !== undefined ? t >= lb.hideAt : false;
+
+        if (hide) {
+          div.classList.remove("visible");
+          return;
+        }
+        if (show && !div._labelTyped) {
+          div._labelTyped = true;
+          div.classList.add("visible");
+          const speed = lb.speed !== undefined ? lb.speed : 50;
+          const text  = lb.text || "";
+          const cursor = div.querySelector(".video-label-cursor");
+          let i = 0;
+          function typeNext() {
+            if (i < text.length) {
+              const node = document.createTextNode(text[i]);
+              div.insertBefore(node, cursor);
+              i++;
+              const tid = setTimeout(typeNext, speed);
+              labelTypewriterTimeouts.push(tid);
+            } else {
+              setTimeout(() => { cursor.style.display = "none"; }, 800);
+            }
+          }
+          typeNext();
+        }
+      });
+    });
+
+    function loadScene(id) {
+      if (!id) return;
+      currentSceneId = id;
+      videoEnded = false;
+      const scene = scenes[id];
+      resetIdleTimer();
+      updateProgressBar(id);
+
+      // Umrandung ab dem ersten Klick (zweites Video)
+      document.getElementById("video-container").classList.add("bordered");
+      textArea.classList.add("bordered");
+
+      overlay.classList.add("fade");
+
+      setTimeout(() => {
+        buildHotspots(scene.hotspots);
+        clearVideoLabels();
+        if (scene.labels) buildVideoLabels(scene.labels);
+        updateSourceSpot(scene);
+
+        if (scene.text) {
+          startTypewriter(
+            scene.text,
+            scene.textAreaDelay !== undefined ? scene.textAreaDelay : 0,
+            scene.textDelay     !== undefined ? scene.textDelay     : 0.5,
+            scene.textSpeed     !== undefined ? scene.textSpeed     : 40
+          );
+        } else {
+          clearTypewriter();
+        }
+        if (scene.footnote) {
+          document.getElementById("footnote-content").innerHTML =
+            scene.footnote.replace(/\n/g, "<br>");
+        } else {
+          document.getElementById("footnote-content").innerHTML = "";
+        }
+
+        if (scene.isMenu && alreadyVisitedMenu) {
+          jumpPending = true;
+          video.src = scene.file;
+          video.load();
+        } else {
+          video.src = scene.file;
+          video.play();
+        }
+
+        overlay.classList.remove("fade");
+      }, 400);
+    }
+
+    function buildHotspots(hotspots) {
+      const layer = document.getElementById("hotspot-layer");
+      layer.innerHTML = "";
+
+      for (const hs of hotspots) {
+        const div = document.createElement("div");
+        div.className = "hotspot";
+        div.style.left   = hs.x;
+        div.style.top    = hs.y;
+        div.style.width  = hs.w;
+        div.style.height = hs.h;
+        div.textContent  = hs.label || "";
+
+        if (hs.color)        div.style.background   = hs.color;
+        if (hs.borderColor)  div.style.borderColor  = hs.borderColor;
+        if (hs.borderRadius) div.style.borderRadius = hs.borderRadius;
+        if (hs.pulseColor)   div.style.setProperty("--pulse-color", hs.pulseColor);
+        if (hs.pulseSize)    div.style.setProperty("--pulse-size",  hs.pulseSize);
+        if (hs.pulse)        div.classList.add("pulse");
+
+        div.onclick = () => {
+          if (hs.target === "__reset__") { resetToStart(); } else { loadScene(hs.target); }
+        };
+        layer.appendChild(div);
+      }
+    }
+
+
+    // =============================================
+    // QUELLEN-SPOT
+    // =============================================
+
+    const sourceSpot    = document.getElementById("source-spot");
+    const sourceTooltip = document.getElementById("source-tooltip");
+    let sourceShown = false;
+    let appStarted  = false;  // Spot erst nach Startbutton-Klick aktiv
+
+    function updateSourceSpot(scene) {
+      if (!appStarted) return;  // vor Startbutton-Klick nichts tun
+      sourceShown = false;
+      sourceSpot.classList.remove("visible");
+      sourceTooltip.classList.remove("visible");
+
+      if (!scene || !scene.sources) return;
+
+      const cfg = scene.sources;
+      // % relativ zum video-container, genau wie Hotspots
+      sourceSpot.style.left = cfg.x || "50%";
+      sourceSpot.style.top  = cfg.y || "50%";
+      sourceTooltip.innerHTML = "<strong>Quellen</strong>" +
+        (cfg.text || "").replace(/\n/g, "<br>");
+
+      if (!cfg.showAt || cfg.showAt <= 0) {
+        sourceSpot.classList.add("visible");
+        sourceShown = true;
+      }
+    }
+
+    // timeupdate für showAt des Quellen-Spots
+    video.addEventListener("timeupdate", () => {
+      if (!appStarted || sourceShown) return;
+      const scene = scenes[currentSceneId];
+      if (!scene || !scene.sources) return;
+      const cfg = scene.sources;
+      if (cfg.showAt !== undefined && video.currentTime >= cfg.showAt) {
+        sourceSpot.classList.add("visible");
+        sourceShown = true;
+      }
+    });
+
+    // Hover: Tooltip ein-/ausblenden
+    sourceSpot.addEventListener("mouseenter", () => {
+      const scene = scenes[currentSceneId];
+      if (!scene || !scene.sources) return;
+
+      // Spot-Position auslesen (offsetLeft/Top = px relativ zum Container)
+      const sl = sourceSpot.offsetLeft;  // Mitte dank transform: translate(-50%,-50%)
+      const st = sourceSpot.offsetTop;
+      // Tooltip zentriert über dem Spot — Breite messen
+      sourceTooltip.style.visibility = "hidden";
+      sourceTooltip.style.left = "0px";
+      sourceTooltip.style.top  = "0px";
+      sourceTooltip.classList.add("visible");
+      const ttW = sourceTooltip.offsetWidth;
+      const ttH = sourceTooltip.offsetHeight;
+      sourceTooltip.classList.remove("visible");
+      sourceTooltip.style.visibility = "";
+      sourceTooltip.style.left = (sl - ttW / 2 + 160) + "px";
+      sourceTooltip.style.top  = (st - ttH - 16) + "px";
+      sourceTooltip.classList.add("visible");
+    });
+
+    sourceSpot.addEventListener("mouseleave", () => {
+      sourceTooltip.classList.remove("visible");
+    });
+
+    buildHotspots(scenes[currentSceneId].hotspots);
+
+  </script>
+</body>
+</html>
